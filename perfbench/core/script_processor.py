@@ -122,8 +122,10 @@ def submit_sunway_job(script_path: str) -> str:
         logger.info(f"提交申威作业 -> 目录: {script_dir}，脚本: {script_name}")
         
         # 执行bsub命令提交作业
+        # 这里存疑，申威集群的作业一般提供一个可执行文件，假设这里的script_name是可执行文件
+        # TODO: 根据实际申威集群的作业提交命令调整
         result = subprocess.run(
-            ['bsub', script_name],
+            script_name,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
