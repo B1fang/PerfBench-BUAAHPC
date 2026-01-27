@@ -102,3 +102,80 @@ def submit_job(script_path: str) -> str:
     finally:
         # 无论提交成功与否，切回原始工作目录
         os.chdir(original_cwd)
+
+def submit_sunway_job(script_path: str) -> str:
+    """
+    提交申威作业并返回jobid
+    - 提交前切换到脚本所在目录，保证相对路径与手动提交一致
+    - 提交后切回原工作目录，不影响后续流程
+    - 完善错误处理，输出详细报错信息
+    """
+    # 转换为绝对路径，避免相对路径歧义
+    script_path = os.path.abspath(script_path)
+    script_dir = os.path.dirname(script_path)
+    script_name = os.path.basename(script_path)
+    original_cwd = os.getcwd()  # 保存原始工作目录
+    
+    try:
+        # 切换到脚本所在目录提交作业（模拟手动在脚本目录执行swarm命令）
+        os.chdir(script_dir)
+        logger.info(f"提交申威作业 -> 目录: {script_dir}，脚本: {script_name}")
+        
+        # 执行bsub命令提交作业
+        result = subprocess.run(
+            ['bsub', script_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True  # 提交失败时抛出CalledProcessError
+        )
+        
+        # 解析jobid (bsub标准输出格式：Submitted b job 123456)
+        output = result.stdout.strip()
+        jobid_match = re.search(r"Submitted b job (\d+)", output)
+        if not jobid_match:
+            logger.error(f"无法从bsub输出中解析jobid: {output}")
+            raise RuntimeError(f"作业提交成功，但无法解析jobid（输出: {output}）")
+        
+        jobid = jobid_match.group(1)
+        logger.info(f"申威作业提交成功，jobid: {jobid}")
+        return jobid
+    
+    except subprocess.CalledProcessError as e:
+        # swarm提交失败（脚本格式错误、资源不足等）
+        error_msg = f"swarm提交失败: {e.stderr.strip()}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from e
+    finally:
+        # 无论提交成功与否，切回原始工作目录
+        os.chdir(original_cwd)
+
+def process_sunway_script(script_path, interval, output_path):
+    """
+    处理申威脚本
+    - 创建输出目录
+    - 提交作业
+    — 在登录节点启动监控器
+    """
+    
+    # 验证输入文件存在
+    if not os.path.exists(script_path):
+        raise FileNotFoundError(f"脚本文件不存在: {script_path}")
+    
+    # 创建输出目录
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    job_dir = os.path.join(output_path, f"perfbench_{timestamp}")
+    os.makedirs(job_dir, exist_ok=True)
+    
+
+    # 提交作业并获取 jobid
+    jobid = submit_sunway_job(script_path)
+
+    # 在登录节点启动监控器（使用 sacct/seff/sinfo）
+    try:
+        monitoring.start_bjob_monitoring_on_login(jobid, interval, job_dir)
+    except Exception as e:
+        logger.warning(f"启动登录节点监控失败: {e}")
+    
+    logger.info(f"作业处理完成，输出目录: {job_dir}")
+    return job_dir

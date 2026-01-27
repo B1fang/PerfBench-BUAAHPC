@@ -113,3 +113,68 @@ done
 
     logger.info(f"登录节点监控脚本已启动 (pid={p.pid})，输出目录: {output_dir}")
     return p.pid
+
+def start_bjob_monitoring_on_login(jobid, interval, output_dir):
+    """
+    在登录节点上启动一个后台监控脚本，定期使用 bjob 等命令采集与 jobid 相关的数据。
+    bjobs [-h] [-w] [-l] [-a| -d | -e | -p | -r ] [-q queue_name] [-u user_name | -u all] [jobId]
+    # 主核负载和内存
+    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \K\d+' | tr '\n' ',' | sed 's/,$//')
+    cnload -c "$NODE_LIST" | awk '
+      /^CPU/ {printf "%-6s %-8s Load:%-5s Mem:%s\n", $1, $2, $3, $4}
+      /Total/ {print "主核总量: "$2" 使用率: "$3}
+    ' >> "$MONITOR_LOG"
+    # 从核位图采集
+    cnload -b -j "$JOBID" > "$TMP_OUT"
+    grep 'SPE[0-9]' "$TMP_OUT" >> "$MONITOR_LOG"
+
+    sleep "$INTERVAL"
+    生成并启动的脚本会把日志写到 output_dir，并将监控进程的 PID 写入 monitor_login.pid。
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    monitor_sh = os.path.join(output_dir, 'monitor_login_sw.sh')
+    monitor_pid = os.path.join(output_dir, 'monitor_login_sw.pid')
+
+    script = f"""#!/bin/bash
+# PerfBench login-node monitoring for Sunway job {jobid}
+JOBID={jobid}
+INTERVAL={interval}
+OUTDIR={output_dir}
+mkdir -p "$OUTDIR"
+while true; do
+    ts=$(date +%Y%m%d_%H%M%S)
+    # bjobs 输出（汇总）
+    bjobs -l $JOBID > "$OUTDIR/bjobs_$ts.log" 2>&1 || true
+    # 主核负载和内存
+    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \K\d+' | tr '\n' ',' | sed 's/,$//')
+    cnload -c "$NODE_LIST" | awk '
+      /^CPU/ {{printf "%-6s %-8s Load:%-5s Mem:%s\\n", $1, $2, $3, $4}}
+      /Total/ {{print "主核总量: "$2" 使用率: "$3}}
+    ' >> "$OUTDIR/cnload_$ts.log" 2>&1 || true
+    # 从核位图采集
+    cnload -b -j "$JOBID" > "$OUTDIR/cnload_bitmap_$ts.log" 2>&1 || true
+    grep 'SPE[0-9]' "$OUTDIR/cnload_bitmap_$ts.log" >> "$OUTDIR/cnload_bitmap_filtered_$ts.log" 2>&1 || true
+
+
+    # 检查作业状态，若终止则退出循环
+    state=$(bjobs -noheader -o stat $JOBID)
+    if [[ "$state" =~ "DONE" || "$state" =~ "EXIT" || "$state" =~ "CANCELED" || "$state" =~ "TERM" ]]; then
+        echo "Job $JOBID finished with state $state at $ts" > "$OUTDIR/job_end_$ts.log"
+        break
+    fi
+
+    sleep $INTERVAL
+done
+"""
+
+    with open(monitor_sh, 'w') as f:
+        f.write(script)
+    os.chmod(monitor_sh, 0o755)
+
+    import subprocess
+    p = subprocess.Popen([monitor_sh], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(monitor_pid, 'w') as f:
+        f.write(str(p.pid))
+
+    logger.info(f"登录节点申威监控脚本已启动 (pid={p.pid})，输出目录: {output_dir}")
+    return p.pid
