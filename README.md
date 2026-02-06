@@ -20,6 +20,10 @@ cd perfbench
 
 2. 初始化环境：
 ```bash
+# 可选：先配置 API 环境变量（推荐）
+cp .env.example .env
+# 编辑 .env 填入你的 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL
+
 ./perfbench.py -init
 ```
 
@@ -42,6 +46,41 @@ cd perfbench
 ./perfbench.py -s /path/to/slurm/script.slurm -t 60 -o /path/to/output
 ```
 
+### Agent 模式（实验性，仅支持 Slurm）
+
+Agent 模式会把“脚本注入/监控策略生成/失败后修复建议”交给 LLM（DeepSeek，OpenAI-compatible），
+并用 LangChain + LangGraph 编排 Coder→Executor→Fixer 的闭环流程。
+
+1) 安装依赖（在登录节点的 Python 环境中执行）：
+```bash
+pip install langchain langchain-openai langgraph
+# 或者（如果你通过本仓库安装 perfbench）：
+# pip install .[agent]
+```
+
+2) 配置 DeepSeek（推荐用环境变量）：
+```bash
+# 推荐写入项目根目录 .env（可由 .env.example 复制）
+DEEPSEEK_API_KEY="你的Key"
+DEEPSEEK_BASE_URL="你的Base URL（OpenAI-compatible，例如 .../v1）"
+DEEPSEEK_MODEL="deepseek-chat"   # 可选
+```
+
+`.env` 加载时机与优先级：
+- 启动 PerfBench 时会自动加载 `.env`
+- 执行 `./perfbench.py -init` 时也会加载 `.env`
+- 优先级（后者覆盖前者）：`~/.perfbench/.env` → `<project_root>/.env` → `<cwd>/.env`
+
+3) 运行（仅 Slurm）：
+```bash
+./perfbench.py -s /path/to/slurm/script.slurm -t 60 -o /path/to/output --agent
+```
+
+可选参数：
+- `--agent-model`：覆盖模型名（否则读 `DEEPSEEK_MODEL`）
+- `--agent-base-url`：覆盖 Base URL（否则读 `DEEPSEEK_BASE_URL`）
+- `--agent-max-fix-rounds`：失败后最大修复轮次（默认 2）
+
 ### 参数说明
 
 - `-init`: 初始化工具环境
@@ -49,6 +88,7 @@ cd perfbench
 - `-s, --script`: 指定SLURM脚本路径
 - `-t, --interval`: 设置性能数据采集间隔（秒）
 - `-o, --output`: 指定输出目录路径
+- `--agent`: 启用 agent 模式（实验性，仅支持 Slurm）
 - `--version`: 显示版本信息
 
 ## 输出说明

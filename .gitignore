@@ -12,6 +12,7 @@ __pycache__/
 # 日志文件
 logs/
 *.log
+.env
 
 # 构建目录
 build/

@@ -3,7 +3,7 @@
 
 import os
 import platform
-import subprocess
+import shutil
 from perfbench.utils.logger import get_logger
 
 logger = get_logger()
@@ -42,17 +42,21 @@ def check_slurm_commands():
     检查SLURM命令是否可用
     """
     commands = ['sinfo', 'squeue', 'sbatch', 'scancel']
+
+    missing = []
     for cmd in commands:
         try:
-            result = subprocess.run(['which', cmd], 
-                                 stdout=subprocess.PIPE, 
-                                 stderr=subprocess.PIPE)
-            if result.returncode != 0:
-                logger.warning(f"未找到命令: {cmd}")
-                return False
+            if shutil.which(cmd) is None:
+                missing.append(cmd)
         except Exception as e:
             logger.error(f"检查命令时出错 {cmd}: {str(e)}")
             return False
+
+    if missing:
+        for cmd in missing:
+            logger.warning(f"未找到命令: {cmd}")
+        return False
+
     return True
 
 def get_architecture():

@@ -119,7 +119,7 @@ def start_bjob_monitoring_on_login(jobid, interval, output_dir):
     在登录节点上启动一个后台监控脚本，定期使用 bjob 等命令采集与 jobid 相关的数据。
     bjobs [-h] [-w] [-l] [-a| -d | -e | -p | -r ] [-q queue_name] [-u user_name | -u all] [jobId]
     # 主核负载和内存
-    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \K\d+' | tr '\n' ',' | sed 's/,$//')
+    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \\K\\d+' | tr '\n' ',' | sed 's/,$//')
     cnload -c "$NODE_LIST" | awk '
       /^CPU/ {printf "%-6s %-8s Load:%-5s Mem:%s\n", $1, $2, $3, $4}
       /Total/ {print "主核总量: "$2" 使用率: "$3}
@@ -146,7 +146,7 @@ while true; do
     # bjobs 输出（汇总）
     bjobs -l $JOBID > "$OUTDIR/bjobs_$ts.log" 2>&1 || true
     # 主核负载和内存
-    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \K\d+' | tr '\n' ',' | sed 's/,$//')
+    local NODE_LIST=$(bjobs -l "$JOBID" | grep -Po 'nodeid: \\K\\d+' | tr '\n' ',' | sed 's/,$//')
     cnload -c "$NODE_LIST" | awk '
       /^CPU/ {{printf "%-6s %-8s Load:%-5s Mem:%s\\n", $1, $2, $3, $4}}
       /Total/ {{print "主核总量: "$2" 使用率: "$3}}

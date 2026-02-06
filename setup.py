@@ -7,9 +7,22 @@ setup(
     author="PerfBench Team",
     packages=find_packages(),
     python_requires=">=3.6",
+    install_requires=[
+        "PyYAML",
+        "pypdf",
+        "reportlab",
+    ],
+    extras_require={
+        # Agent（实验性）：DeepSeek(OpenAI-compatible) + LangChain/LangGraph
+        "agent": [
+            "langchain",
+            "langchain-openai",
+            "langgraph",
+        ],
+    },
     entry_points={
         'console_scripts': [
-            'perfbench=perfbench.main:main',
+            'perfbench=perfbench.__main__:main',
         ],
     },
     classifiers=[
